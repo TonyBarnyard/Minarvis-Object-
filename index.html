@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GitHub & Sheets 3D Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .box { border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        button { background: #2ea44f; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        select { padding: 8px; width: 100%; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <h2>3D Miner: GitHub & Sheets Edition</h2>
+    
+    <div class="box">
+        <h3>1. Select Grid</h3>
+        <p><i>Loading grids from Google Sheets...</i></p>
+        <select id="gridSelect" disabled><option>Loading...</option></select>
+    </div>
+
+    <div class="box">
+        <h3>2. Upload File (.obj)</h3>
+        <input type="file" id="fileInput" accept=".obj">
+    </div>
+
+    <button onclick="processFile()">Convert & Download</button>
+    <p id="status"></p>
+
+<script>
+    // https://docs.google.com/spreadsheets/d/1GiAHhsLnoTLH9noFqOAbgfliyDtU088qYCzWmy96viI/edit?usp=drivesdk
+    const SHEET_URL = 'YOUR_GOOGLE_SHEET_CSV_LINK_HERE';
+    let grids = {};
+
+    // 1. Load Grids from Google Sheets on startup
+    Papa.parse(SHEET_URL, {
+        download: true,
+        header: true,
+        complete: function(results) {
+            const select = document.getElementById('gridSelect');
+            select.innerHTML = "";
+            
+            results.data.forEach(row => {
+                if(row['Grid Name']) {
+                    // Store data in a simpler object
+                    grids[row['Grid Name']] = {
+                        easting: parseFloat(row['Easting_Offset']),
+                        northing: parseFloat(row['Northing_Offset']),
+                        rotation: parseFloat(row['Rotation_Degrees'])
+                    };
+                    // Add to dropdown
+                    let option = document.createElement("option");
+                    option.value = row['Grid Name'];
+                    option.text = row['Grid Name'];
+                    select.appendChild(option);
+                }
+            });
+            select.disabled = false;
+            document.querySelector('p i').innerText = "Grids loaded from Sheets!";
+        }
+    });
+
+    // 2. Process the File
+    function processFile() {
+        const fileInput = document.getElementById('fileInput');
+        const gridName = document.getElementById('gridSelect').value;
+        const status = document.getElementById('status');
+
+        if (!fileInput.files.length) { alert("Select a file!"); return; }
+
+        status.innerText = "Reading file...";
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const contents = event.target.result;
+            
+            // Parse OBJ
+            const loader = new THREE.OBJLoader();
+            const object = loader.parse(contents);
+
+            // Get Grid Math
+            const grid = grids[gridName];
+            
+            // Create Transformation Matrix (Rotation + Translation)
+            // 1. Rotation (Convert degrees to radians)
+            const rad = grid.rotation * (Math.PI / 180);
+            object.rotateZ(-rad); // Rotate around Z axis (Up)
+            object.updateMatrix();
+
+            // 2. Translation (Move to GPS coordinates)
+            // Note: We move the whole object group
+            object.position.set(grid.easting, grid.northing, 0); 
+            object.updateMatrixWorld(true);
+
+            status.innerText = "Converting coordinates...";
+
+            // Export back to OBJ
+            const exporter = new THREE.OBJExporter();
+            const result = exporter.parse(object);
+
+            download(result, "converted_gps.obj");
+            status.innerText = "Done! Download started.";
+        };
+        reader.readAsText(fileInput.files[0]);
+    }
+
+    function download(content, fileName) {
+        const a = document.createElement("a");
+        const file = new Blob([content], {type: 'text/plain'});
+        a.href = URL.createObjectURL(file);
+        a.download = fileName;
+        a.click();
+    }
+</script>
+
+</body>
+</html>
+
