@@ -2,7 +2,7 @@
   "name": "minarvis-position-analysis",
   "version": "1.0.0",
   "description": "Minarvis RTK-Enhanced AR Position Log Analysis Dashboard",
-  "homepage": "https://YOUR-USERNAME.github.io/minarvis-position-analysis",
+  "homepage": "https://TonyBarnard.github.io/Minarvis-Object-",
   "private": true,
   "dependencies": {
     "react": "^18.2.0",
